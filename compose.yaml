@@ -1,0 +1,63 @@
+services:
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  temporal:
+    image: temporalio/temporal:latest
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/data/temporal.db"]
+    ports:
+      - "127.0.0.1:7233:7233"
+      - "127.0.0.1:8233:8233"
+    volumes:
+      - temporal-data:/data
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "localhost:7233"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: .
+    init: true
+    restart: on-failure
+    ports:
+      - "3000:3000"
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      REDIS_URL: redis://redis:6379
+      SUPPLIER_A_DOWN: ${SUPPLIER_A_DOWN:-false}
+      SUPPLIER_B_DOWN: ${SUPPLIER_B_DOWN:-false}
+    depends_on:
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/supplierA/hotels').then(() => process.exit(0)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build: .
+    init: true
+    restart: on-failure
+    command: ["node", "dist/worker.js"]
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      SUPPLIER_URL: http://api:3000
+    depends_on:
+      temporal:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+volumes:
+  temporal-data:

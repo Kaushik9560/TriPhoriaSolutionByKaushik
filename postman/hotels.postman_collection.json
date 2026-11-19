@@ -1,0 +1,79 @@
+{
+  "info": {
+    "name": "Hotel Offer Orchestrator",
+    "description": "Start Docker Compose first. Run the collection with both suppliers available.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [{ "key": "baseUrl", "value": "http://localhost:3000" }],
+  "item": [
+    {
+      "name": "Delhi - cheapest overlapping offers",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/hotels?city=delhi" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK', () => pm.response.to.have.status(200));",
+        "pm.test('Four unique hotels and correct winners', () => {",
+        "  const hotels = pm.response.json();",
+        "  pm.expect(hotels).to.have.lengthOf(4);",
+        "  pm.expect(new Set(hotels.map(h => h.name)).size).to.eql(4);",
+        "  pm.expect(hotels.find(h => h.name === 'Holtin')).to.deep.eql({ name: 'Holtin', price: 5340, supplier: 'Supplier B', commissionPct: 20 });",
+        "  pm.expect(hotels.find(h => h.name === 'Radison').supplier).to.eql('Supplier A');",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "Inclusive price range",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/hotels?city=delhi&minPrice=5340&maxPrice=5900" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK', () => pm.response.to.have.status(200));",
+        "pm.test('Both exact boundaries included', () => pm.expect(pm.response.json().map(h => h.price)).to.deep.eql([5340, 5900]));"
+      ] } }]
+    },
+    {
+      "name": "Maximum price only",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/hotels?city=delhi&maxPrice=4100" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK', () => pm.response.to.have.status(200));",
+        "pm.test('Cheapest two hotels', () => pm.expect(pm.response.json().map(h => h.price)).to.deep.eql([3200, 4100]));"
+      ] } }]
+    },
+    {
+      "name": "City with no results",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/hotels?city=unknown" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK', () => pm.response.to.have.status(200));",
+        "pm.test('Empty array', () => pm.expect(pm.response.json()).to.deep.eql([]));"
+      ] } }]
+    },
+    {
+      "name": "Invalid price range",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/hotels?city=delhi&minPrice=6000&maxPrice=5000" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+      ] } }]
+    },
+    {
+      "name": "Supplier A",
+      "request": { "method": "GET", "url": "{{baseUrl}}/supplierA/hotels?city=delhi" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK', () => pm.response.to.have.status(200));",
+        "pm.test('Three Delhi offers', () => pm.expect(pm.response.json()).to.have.lengthOf(3));"
+      ] } }]
+    },
+    {
+      "name": "Supplier B",
+      "request": { "method": "GET", "url": "{{baseUrl}}/supplierB/hotels?city=delhi" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK', () => pm.response.to.have.status(200));",
+        "pm.test('Three Delhi offers', () => pm.expect(pm.response.json()).to.have.lengthOf(3));"
+      ] } }]
+    },
+    {
+      "name": "Supplier health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/health" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK', () => pm.response.to.have.status(200));",
+        "pm.test('Both suppliers up', () => pm.expect(pm.response.json()).to.deep.eql({ status: 'ok', supplierA: 'up', supplierB: 'up' }));"
+      ] } }]
+    }
+  ]
+}
